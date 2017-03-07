@@ -20,7 +20,6 @@ import android.support.v4.view.GestureDetectorCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.widget.EdgeEffectCompat;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -60,7 +59,12 @@ public class FinanceChart extends View {
     private final char[] labelBuffer = new char[100];
 
 
+    boolean isYScale, isXScale, isYScroll, isXScroll, isYZoom, isXZoom;
+    /**
+     * CUSTOM MODEL
+     */
     List<Model> modelList = new ArrayList<>();
+    float blockWidhInDp = 60;
 
     private RectF currentViewport = new RectF(AXIS_X_MIN, AXIS_Y_MIN, AXIS_X_MAX, AXIS_Y_MAX);
     /**
@@ -98,17 +102,20 @@ public class FinanceChart extends View {
             float focusY = scaleGestureDetector.getFocusY();
             hitTest(focusX, focusY, viewportFocus);
 
-            currentViewport.set(
-                    viewportFocus.x
-                            - newWidth * (focusX - contentRect.left)
-                            / contentRect.width(),
-                    viewportFocus.y
-                            - newHeight * (contentRect.bottom - focusY)
-                            / contentRect.height(),
-                    0,
-                    0);
-            currentViewport.right = currentViewport.left + newWidth;
-            currentViewport.bottom = currentViewport.top + newHeight;
+            float viewportLeft = viewportFocus.x - newWidth * (focusX - contentRect.left) / contentRect.width();
+            float viewportTop = viewportFocus.y - newHeight * (contentRect.bottom - focusY) / contentRect.height();
+            float viewportRight = viewportLeft + newWidth;
+            float viewportBottom = viewportTop + newHeight;
+
+            if (isXScale && isBlockWidthValid(viewportLeft, viewportRight)) {
+                currentViewport.left = viewportLeft;
+                currentViewport.right = viewportRight;
+            }
+            if (isYScale) {
+                currentViewport.top = viewportTop;
+                currentViewport.bottom = viewportBottom;
+            }
+
             constrainViewport();
             ViewCompat.postInvalidateOnAnimation(FinanceChart.this);
 
@@ -388,6 +395,11 @@ public class FinanceChart extends View {
         edgeEffectRight = new EdgeEffectCompat(getContext());
         edgeEffectBottom = new EdgeEffectCompat(getContext());
 
+        //Setup modified chart flag
+        isXScale = isXScroll = isXZoom = true;
+        isYScale = isYScroll = isYZoom = false;
+
+        //Generate sample data
         genSampleData();
     }
 
@@ -508,9 +520,9 @@ public class FinanceChart extends View {
             int currY = scroller.getCurrY();
 
             boolean canScrollX = (currentViewport.left > AXIS_X_MIN
-                    || currentViewport.right < AXIS_X_MAX);
+                    || currentViewport.right < AXIS_X_MAX) && isXScroll;
             boolean canScrollY = (currentViewport.top > AXIS_Y_MIN
-                    || currentViewport.bottom < AXIS_Y_MAX);
+                    || currentViewport.bottom < AXIS_Y_MAX) && isYScroll;
 
             if (canScrollX
                     && currX < 0
@@ -560,13 +572,25 @@ public class FinanceChart extends View {
                     / scrollerStartViewport.width();
             float pointWithinViewportY = (zoomFocalPoint.y - scrollerStartViewport.top)
                     / scrollerStartViewport.height();
-            currentViewport.set(
-                    zoomFocalPoint.x - newWidth * pointWithinViewportX,
-                    zoomFocalPoint.y - newHeight * pointWithinViewportY,
-                    zoomFocalPoint.x + newWidth * (1 - pointWithinViewportX),
-                    zoomFocalPoint.y + newHeight * (1 - pointWithinViewportY));
-            constrainViewport();
+
+            float viewportLeft = zoomFocalPoint.x - newWidth * pointWithinViewportX;
+            float viewportTop = zoomFocalPoint.y - newHeight * pointWithinViewportY;
+            float viewportRight = zoomFocalPoint.x + newWidth * (1 - pointWithinViewportX);
+            float viewportBottom = zoomFocalPoint.y + newHeight * (1 - pointWithinViewportY);
+
+            if (isXZoom && isBlockWidthValid(viewportLeft, viewportRight)) {
+                currentViewport.left = viewportLeft;
+                currentViewport.right = viewportRight;
+            }
+
+            if (isYZoom) {
+                currentViewport.top = viewportTop;
+                currentViewport.bottom = viewportBottom;
+            }
+
             needsInvalidate = true;
+            constrainViewport();
+
         }
 
         if (needsInvalidate) {
@@ -596,13 +620,21 @@ public class FinanceChart extends View {
     }
 
     private void initScale() {
-        int numBlockOffset = contentRect.width() / convertDpToPixels(60);
-        Log.e(TAG, "initScale: " + numBlockOffset);
+        int numBlockOffset = contentRect.width() / convertDpToPixels(blockWidhInDp);
         currentViewport.set(currentViewport.left, currentViewport.top,
                 modelList.get(numBlockOffset).getXVal(), currentViewport.bottom);
 
         ViewCompat.postInvalidateOnAnimation(this);
+    }
 
+    private boolean isBlockWidthValid(float viewportLeft, float viewportRight) {
+        float width = convertDpToPixels(blockWidhInDp);
+        float measureWidth = contentRect.width() / ((AXIS_X_MAX - AXIS_X_MIN) / (viewportRight - viewportLeft));
+        return measureWidth >= width * 2 / 3 && measureWidth <= width * 3 / 2;
+    }
+
+    private float getBlockWidthPx() {
+        return contentRect.width() / ((AXIS_X_MAX - AXIS_X_MIN) / (currentViewport.right - currentViewport.left));
     }
 
     /**
