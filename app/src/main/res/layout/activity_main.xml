@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.nhancv.financechart.lib.FinanceChart
+<RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/financeChart"
     android:layout_width="match_parent"
-    android:layout_height="184.4dp"
-    android:background="#E60A1F2A"/>
+    android:layout_height="match_parent">
+
+    <com.nhancv.financechart.lib.FinanceChart
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/financeChart"
+        android:layout_width="match_parent"
+        android:layout_height="184.4dp"
+        android:layout_centerInParent="true"
+        android:background="#E60A1F2A"
+        android:paddingBottom="10dp"
+        android:paddingTop="20dp"/>
+
+</RelativeLayout>

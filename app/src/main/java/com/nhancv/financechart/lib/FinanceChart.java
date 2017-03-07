@@ -20,6 +20,7 @@ import android.support.v4.view.GestureDetectorCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.widget.EdgeEffectCompat;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -50,21 +51,13 @@ public class FinanceChart extends View {
     private static final float AXIS_X_MAX = 1f;
     private static final float AXIS_Y_MIN = -1f;
     private static final float AXIS_Y_MAX = 1f;
-
-    private static final int POW10[] = {1, 10, 100, 1000, 10000, 100000, 1000000};
-
-    //Buffers for storing current X and Y stops. See the computeAxisStops method for more details.
-    private final AxisStops xStopsBuffer = new AxisStops();
-    private final AxisStops yStopsBuffer = new AxisStops();
-    private final char[] labelBuffer = new char[100];
-
-
+    //Chart modified flag
     boolean isYScale, isXScale, isYScroll, isXScroll, isYZoom, isXZoom;
     /**
      * CUSTOM MODEL
      */
     List<Model> modelList = new ArrayList<>();
-    float blockWidhInDp = 60;
+    float blockWidthInDp = 60;
 
     private RectF currentViewport = new RectF(AXIS_X_MIN, AXIS_Y_MIN, AXIS_X_MAX, AXIS_Y_MAX);
     /**
@@ -137,9 +130,9 @@ public class FinanceChart extends View {
     private float axisThickness;
     private int axisColor;
     private Paint axisPaint;
-    private float dataThickness;
-    private int dataColor;
-    private Paint dataPaint;
+    private float dataThickness, dataPointRadius;
+    private int dataColor, dataPointColor;
+    private Paint dataPaint, dataPointPaint;
     //State objects and values related to gesture tracking.
     private ScaleGestureDetector scaleGestureDetector;
     private GestureDetectorCompat gestureDetector;
@@ -158,9 +151,7 @@ public class FinanceChart extends View {
     private boolean edgeEffectRightActive;
     //Buffers used during drawing. These are defined as fields to avoid allocation during draw calls.
     private float[] axisXPositionsBuffer = new float[]{};
-    private float[] axisYPositionsBuffer = new float[]{};
     private float[] axisXLinesBuffer = new float[]{};
-    private float[] axisYLinesBuffer = new float[]{};
     private float[] seriesLinesBuffer = new float[]{};
     private Point surfaceSizeBuffer = new Point();
     //The gesture listener, used for handling simple gestures such as double touches, scrolls, and flings.
@@ -253,127 +244,25 @@ public class FinanceChart extends View {
         init();
     }
 
-    /**
-     * Rounds the given number to the given number of significant digits. Based on an answer on
-     * <a href="http://stackoverflow.com/questions/202302">Stack Overflow</a>.
-     */
-    private static float roundToOneSignificantFigure(double num) {
-        final float d = (float) Math.ceil((float) Math.log10(num < 0 ? -num : num));
-        final int power = 1 - (int) d;
-        final float magnitude = (float) Math.pow(10, power);
-        final long shifted = Math.round(num * magnitude);
-        return shifted / magnitude;
-    }
-
-    /**
-     * Formats a float value to the given number of decimals. Returns the length of the string.
-     * The string begins at out.length - [return value].
-     */
-    private static int formatFloat(final char[] out, float val, int digits) {
-        boolean negative = false;
-        if (val == 0) {
-            out[out.length - 1] = '0';
-            return 1;
-        }
-        if (val < 0) {
-            negative = true;
-            val = -val;
-        }
-        if (digits > POW10.length) {
-            digits = POW10.length - 1;
-        }
-        val *= POW10[digits];
-        long lval = Math.round(val);
-        int index = out.length - 1;
-        int charCount = 0;
-        while (lval != 0 || charCount < (digits + 1)) {
-            int digit = (int) (lval % 10);
-            lval = lval / 10;
-            out[index--] = (char) (digit + '0');
-            charCount++;
-            if (charCount == digits) {
-                out[index--] = '.';
-                charCount++;
-            }
-        }
-        if (negative) {
-            out[index] = '-';
-            charCount++;
-        }
-        return charCount;
-    }
-
-    /**
-     * Computes the set of axis labels to show given start and stop boundaries and an ideal number
-     * of stops between these boundaries.
-     *
-     * @param start    The minimum extreme (e.g. the left edge) for the axis.
-     * @param stop     The maximum extreme (e.g. the right edge) for the axis.
-     * @param steps    The ideal number of stops to create. This should be based on available screen
-     *                 space; the more space there is, the more stops should be shown.
-     * @param outStops The destination {@link AxisStops} object to populate.
-     */
-    private static void computeAxisStops(float start, float stop, int steps, AxisStops outStops) {
-        double range = stop - start;
-        if (steps == 0 || range <= 0) {
-            outStops.stops = new float[]{};
-            outStops.numStops = 0;
-            return;
-        }
-
-        double rawInterval = range / steps;
-        double interval = roundToOneSignificantFigure(rawInterval);
-        double intervalMagnitude = Math.pow(10, (int) Math.log10(interval));
-        int intervalSigDigit = (int) (interval / intervalMagnitude);
-        if (intervalSigDigit > 5) {
-            // Use one order of magnitude higher, to avoid intervals like 0.9 or 90
-            interval = Math.floor(10 * intervalMagnitude);
-        }
-
-        double first = Math.ceil(start / interval) * interval;
-        double last = Math.nextUp(Math.floor(stop / interval) * interval);
-
-        double f;
-        int i;
-        int n = 0;
-        for (f = first; f <= last; f += interval) {
-            ++n;
-        }
-
-        outStops.numStops = n;
-
-        if (outStops.stops.length < n) {
-            // Ensure stops contains at least numStops elements.
-            outStops.stops = new float[n];
-        }
-
-        for (f = first, i = 0; i < n; f += interval, ++i) {
-            outStops.stops[i] = (float) f;
-        }
-
-        if (interval < 1) {
-            outStops.decimals = (int) Math.ceil(-Math.log10(interval));
-        } else {
-            outStops.decimals = 0;
-        }
-    }
-
     private void init() {
 
         try {
             //Setup properties
             labelTextColor = Color.parseColor("#9ea8b2");
             labelTextSize = convertSpToPixels(12.5f);
-            labelSeparation = convertDpToPixels(10);
+            labelSeparation = convertDpToPixels(0);
 
             gridThickness = convertDpToPixels(1);
             gridColor = Color.parseColor("#79929e");
 
             axisThickness = convertDpToPixels(1);
-            axisColor = Color.parseColor("#22e2fe");
+            axisColor = Color.parseColor("#9ea8b2");
 
             dataThickness = convertDpToPixels(1);
             dataColor = Color.parseColor("#22e2fe");
+
+            dataPointRadius = convertDpToPixels(4);
+            dataPointColor = Color.parseColor("#22e2fe");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -407,6 +296,7 @@ public class FinanceChart extends View {
         Random random = new Random();
         modelList = new ArrayList<>();
 
+        //Compute chart data
         int maxYData = Integer.MIN_VALUE;
         for (int i = 0; i <= 20; i++) {
             int value = Math.abs(random.nextInt() % 30);
@@ -415,14 +305,22 @@ public class FinanceChart extends View {
             modelList.add(model);
         }
 
+        float blockW = (AXIS_X_MAX - AXIS_X_MIN) / modelList.size();
+        float blockOffset = (blockW) / 2;
+
         for (int i = 0; i < modelList.size(); i++) {
             float value = Float.valueOf(modelList.get(i).getValue());
-            float x = (currentViewport.left + (currentViewport.width() / modelList.size() * (i + 1)));
+            float x = (currentViewport.left + blockOffset + (blockW * i));
             modelList.get(i).setXVal(x);
-            modelList.get(i).setYVal(currentViewport.bottom - value / maxYData * currentViewport.height());
+            modelList.get(i).setYVal(currentViewport.bottom - value / maxYData * (AXIS_Y_MAX - AXIS_Y_MIN));
         }
 
         seriesLinesBuffer = new float[(modelList.size() + 1) * 4];
+
+        //Compute grid data
+        axisXPositionsBuffer = new float[(modelList.size() + 1)];
+        axisXLinesBuffer = new float[(modelList.size() + 1) * 4];
+
     }
 
     private void setupPaints() {
@@ -448,16 +346,22 @@ public class FinanceChart extends View {
         dataPaint.setColor(dataColor);
         dataPaint.setStyle(Paint.Style.STROKE);
         dataPaint.setAntiAlias(true);
+
+        dataPointPaint = new Paint();
+        dataPointPaint.setColor(dataPointColor);
+        dataPointPaint.setStyle(Paint.Style.FILL);
+        dataPointPaint.setAntiAlias(true);
     }
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        Log.e(TAG, "onSizeChanged: " + (int) dataPointRadius / 2);
         contentRect.set(
                 getPaddingLeft() + maxLabelWidth + labelSeparation,
-                getPaddingTop(),
+                getPaddingTop() + (int) dataPointRadius / 2,
                 getWidth() - getPaddingRight(),
-                getHeight() - getPaddingBottom() - labelHeight - labelSeparation);
+                getHeight() - getPaddingBottom() - labelHeight - labelSeparation - (int) dataPointRadius / 2);
         //Init scale
         initScale();
     }
@@ -480,22 +384,29 @@ public class FinanceChart extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        // Draws axes and text labels
+        //Draws axes and text labels
         drawAxes(canvas);
+        //Draw data on chart
+        drawData(canvas);
+        //Draws chart container
+        drawBorder(canvas);
+    }
 
+    private void drawBorder(Canvas canvas) {
+        canvas.drawLine(contentRect.left, contentRect.top - getPaddingTop(), contentRect.left, contentRect.bottom, axisPaint);
+        canvas.drawLine(contentRect.left, contentRect.bottom, contentRect.right, contentRect.bottom, axisPaint);
+    }
+
+    private void drawData(Canvas canvas) {
         // Clips the next few drawing operations to the content area
         int clipRestoreCount = canvas.save();
-        canvas.clipRect(contentRect);
+        canvas.clipRect(new Rect(contentRect.left, contentRect.top - (int) dataPointRadius / 2, contentRect.right, contentRect.bottom));
 
         drawDataSeriesUnclipped(canvas);
         drawEdgeEffectsUnclipped(canvas);
 
         // Removes clipping rectangle
         canvas.restoreToCount(clipRestoreCount);
-
-        // Draws chart container
-        canvas.drawLine(contentRect.left, contentRect.top, contentRect.left, contentRect.bottom, axisPaint);
-        canvas.drawLine(contentRect.left, contentRect.bottom, contentRect.right, contentRect.bottom, axisPaint);
     }
 
     @Override
@@ -620,7 +531,7 @@ public class FinanceChart extends View {
     }
 
     private void initScale() {
-        int numBlockOffset = contentRect.width() / convertDpToPixels(blockWidhInDp);
+        int numBlockOffset = contentRect.width() / convertDpToPixels(blockWidthInDp);
         currentViewport.set(currentViewport.left, currentViewport.top,
                 modelList.get(numBlockOffset).getXVal(), currentViewport.bottom);
 
@@ -628,7 +539,7 @@ public class FinanceChart extends View {
     }
 
     private boolean isBlockWidthValid(float viewportLeft, float viewportRight) {
-        float width = convertDpToPixels(blockWidhInDp);
+        float width = convertDpToPixels(blockWidthInDp);
         float measureWidth = contentRect.width() / ((AXIS_X_MAX - AXIS_X_MIN) / (viewportRight - viewportLeft));
         return measureWidth >= width * 2 / 3 && measureWidth <= width * 3 / 2;
     }
@@ -641,87 +552,59 @@ public class FinanceChart extends View {
      * Draws the chart axes and labels onto the canvas.
      */
     private void drawAxes(Canvas canvas) {
-        // Computes axis stops (in terms of numerical value and position on screen)
-        int i;
+        int clipRestoreCount = canvas.save();
+        canvas.clipRect(new Rect(contentRect.left, contentRect.top - getPaddingTop(), contentRect.right, contentRect.bottom + getPaddingBottom() + labelHeight + labelSeparation));
 
-        computeAxisStops(
-                currentViewport.left,
-                currentViewport.right,
-                contentRect.width() / maxLabelWidth / 2,
-                xStopsBuffer);
-        computeAxisStops(
-                currentViewport.top,
-                currentViewport.bottom,
-                contentRect.height() / labelHeight / 2,
-                yStopsBuffer);
-
-        // Avoid unnecessary allocations during drawing. Re-use allocated
-        // arrays and only reallocate if the number of stops grows.
-        if (axisXPositionsBuffer.length < xStopsBuffer.numStops) {
-            axisXPositionsBuffer = new float[xStopsBuffer.numStops];
-        }
-        if (axisYPositionsBuffer.length < yStopsBuffer.numStops) {
-            axisYPositionsBuffer = new float[yStopsBuffer.numStops];
-        }
-        if (axisXLinesBuffer.length < xStopsBuffer.numStops * 4) {
-            axisXLinesBuffer = new float[xStopsBuffer.numStops * 4];
-        }
-        if (axisYLinesBuffer.length < yStopsBuffer.numStops * 4) {
-            axisYLinesBuffer = new float[yStopsBuffer.numStops * 4];
-        }
-
-        // Compute positions
-        for (i = 0; i < xStopsBuffer.numStops; i++) {
-            axisXPositionsBuffer[i] = getDrawX(xStopsBuffer.stops[i]);
-        }
-        for (i = 0; i < yStopsBuffer.numStops; i++) {
-            axisYPositionsBuffer[i] = getDrawY(yStopsBuffer.stops[i]);
+        //Compute positions
+        float blockW = (AXIS_X_MAX - AXIS_X_MIN) / modelList.size();
+        float blockOffset = (blockW) / 2;
+        for (int i = 0; i < modelList.size(); i++) {
+            axisXPositionsBuffer[i] = getDrawX(modelList.get(i).getXVal() - blockOffset);
         }
 
         // Draws grid lines using drawLines (faster than individual drawLine calls)
-        for (i = 0; i < xStopsBuffer.numStops; i++) {
-            axisXLinesBuffer[i * 4 + 0] = (float) Math.floor(axisXPositionsBuffer[i]);
-            axisXLinesBuffer[i * 4 + 1] = contentRect.top;
-            axisXLinesBuffer[i * 4 + 2] = (float) Math.floor(axisXPositionsBuffer[i]);
+        for (int i = 0; i < modelList.size(); i++) {
+            axisXLinesBuffer[i * 4 + 0] = axisXPositionsBuffer[i];
+            axisXLinesBuffer[i * 4 + 1] = contentRect.top - getPaddingTop();
+            axisXLinesBuffer[i * 4 + 2] = axisXPositionsBuffer[i];
             axisXLinesBuffer[i * 4 + 3] = contentRect.bottom;
         }
-        canvas.drawLines(axisXLinesBuffer, 0, xStopsBuffer.numStops * 4, gridPaint);
+        canvas.drawLines(axisXLinesBuffer, 0, modelList.size() * 4, gridPaint);
 
-        for (i = 0; i < yStopsBuffer.numStops; i++) {
-            axisYLinesBuffer[i * 4 + 0] = contentRect.left;
-            axisYLinesBuffer[i * 4 + 1] = (float) Math.floor(axisYPositionsBuffer[i]);
-            axisYLinesBuffer[i * 4 + 2] = contentRect.right;
-            axisYLinesBuffer[i * 4 + 3] = (float) Math.floor(axisYPositionsBuffer[i]);
-        }
-        canvas.drawLines(axisYLinesBuffer, 0, yStopsBuffer.numStops * 4, gridPaint);
-
-        // Draws X labels
-        int labelOffset;
-        int labelLength;
+        // Draws X bottom labels
         labelTextPaint.setTextAlign(Paint.Align.CENTER);
-        for (i = 0; i < xStopsBuffer.numStops; i++) {
-            // Do not use String.format in high-performance code such as onDraw code.
-            labelLength = formatFloat(labelBuffer, xStopsBuffer.stops[i], xStopsBuffer.decimals);
-            labelOffset = labelBuffer.length - labelLength;
+        for (int i = 0; i < modelList.size(); i++) {
+            int labelLength = modelList.get(i).getTitle().length();
             canvas.drawText(
-                    labelBuffer, labelOffset, labelLength,
-                    axisXPositionsBuffer[i],
+                    modelList.get(i).getTitle(), 0, labelLength,
+                    getDrawX(modelList.get(i).getXVal()),
                     contentRect.bottom + labelHeight + labelSeparation,
                     labelTextPaint);
         }
 
-        // Draws Y labels
-        labelTextPaint.setTextAlign(Paint.Align.RIGHT);
-        for (i = 0; i < yStopsBuffer.numStops; i++) {
-            // Do not use String.format in high-performance code such as onDraw code.
-            labelLength = formatFloat(labelBuffer, yStopsBuffer.stops[i], yStopsBuffer.decimals);
-            labelOffset = labelBuffer.length - labelLength;
+
+        // Draws X top labels
+        labelTextPaint.setTextAlign(Paint.Align.CENTER);
+        for (int i = 0; i < modelList.size(); i++) {
+            int labelLength = modelList.get(i).getValue().length();
             canvas.drawText(
-                    labelBuffer, labelOffset, labelLength,
-                    contentRect.left - labelSeparation,
-                    axisYPositionsBuffer[i] + labelHeight / 2,
+                    modelList.get(i).getValue(), 0, labelLength,
+                    getDrawX(modelList.get(i).getXVal()),
+                    contentRect.top - dataPointRadius / 2,
                     labelTextPaint);
         }
+
+        canvas.restoreToCount(clipRestoreCount);
+
+        // Draws Y labels
+        labelTextPaint.setTextAlign(Paint.Align.RIGHT);
+        canvas.drawText(
+                "$", 0, 1,
+                contentRect.left - convertDpToPixels(7),
+                contentRect.top - dataPointRadius / 2,
+                labelTextPaint);
+
+
     }
 
     /**
@@ -737,7 +620,7 @@ public class FinanceChart extends View {
      * Computes the pixel offset for the given Y chart value. This may be outside the view bounds.
      */
     private float getDrawY(float y) {
-        return contentRect.bottom
+        return contentRect.bottom - dataPointRadius
                 - contentRect.height()
                 * (y - currentViewport.top) / currentViewport.height();
     }
@@ -747,19 +630,24 @@ public class FinanceChart extends View {
      * before calling this method.
      */
     private void drawDataSeriesUnclipped(Canvas canvas) {
-        seriesLinesBuffer[0] = contentRect.left;
-        seriesLinesBuffer[1] = getDrawY(0);
-        seriesLinesBuffer[2] = seriesLinesBuffer[0];
-        seriesLinesBuffer[3] = seriesLinesBuffer[1];
 
-        for (int i = 1; i <= modelList.size(); i++) {
-            seriesLinesBuffer[i * 4 + 0] = seriesLinesBuffer[(i - 1) * 4 + 2];
-            seriesLinesBuffer[i * 4 + 1] = seriesLinesBuffer[(i - 1) * 4 + 3];
+        for (int i = 0; i < modelList.size(); i++) {
+            if (i == 0) {
+                seriesLinesBuffer[i * 4 + 0] = getDrawX(modelList.get(i).getXVal());
+                seriesLinesBuffer[i * 4 + 1] = getDrawY(modelList.get(i).getYVal());
+            } else {
+                seriesLinesBuffer[i * 4 + 0] = seriesLinesBuffer[(i - 1) * 4 + 2];
+                seriesLinesBuffer[i * 4 + 1] = seriesLinesBuffer[(i - 1) * 4 + 3];
+            }
+            canvas.drawCircle(seriesLinesBuffer[i * 4 + 0], seriesLinesBuffer[i * 4 + 1], dataPointRadius, dataPointPaint);
 
-            seriesLinesBuffer[i * 4 + 2] = getDrawX(modelList.get(i - 1).getXVal());
-            seriesLinesBuffer[i * 4 + 3] = getDrawY(modelList.get(i - 1).getYVal());
+            seriesLinesBuffer[i * 4 + 2] = getDrawX(modelList.get(i).getXVal());
+            seriesLinesBuffer[i * 4 + 3] = getDrawY(modelList.get(i).getYVal());
+            canvas.drawCircle(seriesLinesBuffer[i * 4 + 2], seriesLinesBuffer[i * 4 + 3], dataPointRadius, dataPointPaint);
+
         }
         canvas.drawLines(seriesLinesBuffer, dataPaint);
+
     }
 
     /**
@@ -1133,14 +1021,6 @@ public class FinanceChart extends View {
         }
     }
 
-    /**
-     * A simple class representing axis label values.
-     */
-    private static class AxisStops {
-        float[] stops = new float[]{};
-        int numStops;
-        int decimals;
-    }
 }
 
 
