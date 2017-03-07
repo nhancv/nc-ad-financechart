@@ -20,6 +20,7 @@ import android.support.v4.view.GestureDetectorCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.widget.EdgeEffectCompat;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -445,6 +446,8 @@ public class FinanceChart extends View {
                 getPaddingTop(),
                 getWidth() - getPaddingRight(),
                 getHeight() - getPaddingBottom() - labelHeight - labelSeparation);
+        //Init scale
+        initScale();
     }
 
     @Override
@@ -590,6 +593,16 @@ public class FinanceChart extends View {
         super.onRestoreInstanceState(ss.getSuperState());
 
         currentViewport = ss.viewport;
+    }
+
+    private void initScale() {
+        int numBlockOffset = contentRect.width() / convertDpToPixels(60);
+        Log.e(TAG, "initScale: " + numBlockOffset);
+        currentViewport.set(currentViewport.left, currentViewport.top,
+                modelList.get(numBlockOffset).getXVal(), currentViewport.bottom);
+
+        ViewCompat.postInvalidateOnAnimation(this);
+
     }
 
     /**
