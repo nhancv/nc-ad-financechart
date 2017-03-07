@@ -29,6 +29,12 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.widget.OverScroller;
 
+import com.nhancv.financechart.Model;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 /**
  * Created by nhancao on 3/7/17.
  */
@@ -36,8 +42,6 @@ import android.widget.OverScroller;
 public class FinanceChart extends View {
     private static final String TAG = FinanceChart.class.getSimpleName();
 
-    //The number of individual points (samples) in the chart series to draw onscreen.
-    private static final int DRAW_STEPS = 30;
     //Initial fling velocity for pan operations, in screen widths (or heights) per second.
     private static final float PAN_VELOCITY_FACTOR = 2f;
     //The scaling factor for a single zoom 'step'.
@@ -46,11 +50,17 @@ public class FinanceChart extends View {
     private static final float AXIS_X_MAX = 1f;
     private static final float AXIS_Y_MIN = -1f;
     private static final float AXIS_Y_MAX = 1f;
+
     private static final int POW10[] = {1, 10, 100, 1000, 10000, 100000, 1000000};
+
     //Buffers for storing current X and Y stops. See the computeAxisStops method for more details.
     private final AxisStops xStopsBuffer = new AxisStops();
     private final AxisStops yStopsBuffer = new AxisStops();
     private final char[] labelBuffer = new char[100];
+
+
+    List<Model> modelList = new ArrayList<>();
+
     private RectF currentViewport = new RectF(AXIS_X_MIN, AXIS_Y_MIN, AXIS_X_MAX, AXIS_Y_MAX);
     /**
      * The current destination rectangle (in pixel coordinates) into which the chart data should
@@ -143,7 +153,7 @@ public class FinanceChart extends View {
     private float[] axisYPositionsBuffer = new float[]{};
     private float[] axisXLinesBuffer = new float[]{};
     private float[] axisYLinesBuffer = new float[]{};
-    private float[] seriesLinesBuffer = new float[(DRAW_STEPS + 1) * 4];
+    private float[] seriesLinesBuffer = new float[]{};
     private Point surfaceSizeBuffer = new Point();
     //The gesture listener, used for handling simple gestures such as double touches, scrolls, and flings.
     private final GestureDetector.SimpleOnGestureListener gestureListener
@@ -233,16 +243,6 @@ public class FinanceChart extends View {
     public FinanceChart(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         init();
-    }
-
-    /**
-     * The simple math function Y = fun(X) to draw on the chart.
-     *
-     * @param x The X value
-     * @return The Y value
-     */
-    protected static float fun(float x) {
-        return (float) Math.pow(x, 3) - x / 4;
     }
 
     /**
@@ -386,6 +386,30 @@ public class FinanceChart extends View {
         edgeEffectTop = new EdgeEffectCompat(getContext());
         edgeEffectRight = new EdgeEffectCompat(getContext());
         edgeEffectBottom = new EdgeEffectCompat(getContext());
+
+        genSampleData();
+    }
+
+    private void genSampleData() {
+        Random random = new Random();
+        modelList = new ArrayList<>();
+
+        int maxYData = Integer.MIN_VALUE;
+        for (int i = 0; i <= 20; i++) {
+            int value = Math.abs(random.nextInt() % 30);
+            maxYData = Math.max(maxYData, value);
+            Model model = new Model(String.valueOf(i + 1), String.valueOf(value));
+            modelList.add(model);
+        }
+
+        for (int i = 0; i < modelList.size(); i++) {
+            float value = Float.valueOf(modelList.get(i).getValue());
+            float x = (currentViewport.left + (currentViewport.width() / modelList.size() * (i + 1)));
+            modelList.get(i).setXVal(x);
+            modelList.get(i).setYVal(currentViewport.bottom - value / maxYData * currentViewport.height());
+        }
+
+        seriesLinesBuffer = new float[(modelList.size() + 1) * 4];
     }
 
     private void setupPaints() {
@@ -455,7 +479,8 @@ public class FinanceChart extends View {
         canvas.restoreToCount(clipRestoreCount);
 
         // Draws chart container
-        canvas.drawRect(contentRect, axisPaint);
+        canvas.drawLine(contentRect.left, contentRect.top, contentRect.left, contentRect.bottom, axisPaint);
+        canvas.drawLine(contentRect.left, contentRect.bottom, contentRect.right, contentRect.bottom, axisPaint);
     }
 
     @Override
@@ -673,23 +698,21 @@ public class FinanceChart extends View {
     }
 
     /**
-     * Draws the currently visible portion of the data series defined by {@link #fun(float)} to the
-     * canvas. This method does not clip its drawing, so users should call {@link Canvas#clipRect
+     * This method does not clip its drawing, so users should call {@link Canvas#clipRect
      * before calling this method.
      */
     private void drawDataSeriesUnclipped(Canvas canvas) {
         seriesLinesBuffer[0] = contentRect.left;
-        seriesLinesBuffer[1] = getDrawY(fun(currentViewport.left));
+        seriesLinesBuffer[1] = getDrawY(0);
         seriesLinesBuffer[2] = seriesLinesBuffer[0];
         seriesLinesBuffer[3] = seriesLinesBuffer[1];
-        float x;
-        for (int i = 1; i <= DRAW_STEPS; i++) {
+
+        for (int i = 1; i <= modelList.size(); i++) {
             seriesLinesBuffer[i * 4 + 0] = seriesLinesBuffer[(i - 1) * 4 + 2];
             seriesLinesBuffer[i * 4 + 1] = seriesLinesBuffer[(i - 1) * 4 + 3];
 
-            x = (currentViewport.left + (currentViewport.width() / DRAW_STEPS * i));
-            seriesLinesBuffer[i * 4 + 2] = getDrawX(x);
-            seriesLinesBuffer[i * 4 + 3] = getDrawY(fun(x));
+            seriesLinesBuffer[i * 4 + 2] = getDrawX(modelList.get(i - 1).getXVal());
+            seriesLinesBuffer[i * 4 + 3] = getDrawY(modelList.get(i - 1).getYVal());
         }
         canvas.drawLines(seriesLinesBuffer, dataPaint);
     }
