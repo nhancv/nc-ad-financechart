@@ -356,7 +356,6 @@ public class FinanceChart extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        Log.e(TAG, "onSizeChanged: " + (int) dataPointRadius / 2);
         contentRect.set(
                 getPaddingLeft() + maxLabelWidth + labelSeparation,
                 getPaddingTop() + (int) dataPointRadius / 2,
