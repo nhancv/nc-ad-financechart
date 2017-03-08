@@ -411,6 +411,25 @@ public class FinanceChart extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        int action = event.getAction();
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+                // Disallow ScrollView to intercept touch events.
+                if (event.getPointerCount() > 1) {
+                    //Enable if has more than 2 pointer
+                    this.getParent().requestDisallowInterceptTouchEvent(true);
+                } else if (currentViewport.left == AXIS_X_MIN || currentViewport.right == AXIS_X_MAX) {
+                    //Enable if edge detected
+                    this.getParent().requestDisallowInterceptTouchEvent(true);
+                }
+                break;
+
+            case MotionEvent.ACTION_UP:
+                // Allow ScrollView to intercept touch events.
+                this.getParent().requestDisallowInterceptTouchEvent(false);
+                break;
+        }
+
         boolean retVal = scaleGestureDetector.onTouchEvent(event);
         retVal = gestureDetector.onTouchEvent(event) || retVal;
         return retVal || super.onTouchEvent(event);
