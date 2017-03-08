@@ -20,7 +20,6 @@ import android.support.v4.view.GestureDetectorCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.widget.EdgeEffectCompat;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -299,7 +298,8 @@ public class FinanceChart extends View {
         //Compute chart data
         int maxYData = Integer.MIN_VALUE;
         for (int i = 0; i <= 20; i++) {
-            int value = Math.abs(random.nextInt() % 30);
+//            int value = Math.abs(random.nextInt() % 30);
+            int value = i;
             maxYData = Math.max(maxYData, value);
             Model model = new Model(String.valueOf(i + 1), String.valueOf(value));
             modelList.add(model);
@@ -311,8 +311,9 @@ public class FinanceChart extends View {
         for (int i = 0; i < modelList.size(); i++) {
             float value = Float.valueOf(modelList.get(i).getValue());
             float x = (currentViewport.left + blockOffset + (blockW * i));
+            float y = currentViewport.bottom - value / maxYData * (AXIS_Y_MAX - AXIS_Y_MIN);
             modelList.get(i).setXVal(x);
-            modelList.get(i).setYVal(currentViewport.bottom - value / maxYData * (AXIS_Y_MAX - AXIS_Y_MIN));
+            modelList.get(i).setYVal(y);
         }
 
         seriesLinesBuffer = new float[(modelList.size() + 1) * 4];
@@ -399,7 +400,7 @@ public class FinanceChart extends View {
     private void drawData(Canvas canvas) {
         // Clips the next few drawing operations to the content area
         int clipRestoreCount = canvas.save();
-        canvas.clipRect(new Rect(contentRect.left, contentRect.top - (int) dataPointRadius / 2, contentRect.right, contentRect.bottom));
+        canvas.clipRect(new Rect(contentRect.left, contentRect.top - (int) dataPointRadius * 2, contentRect.right, contentRect.bottom));
 
         drawDataSeriesUnclipped(canvas);
         drawEdgeEffectsUnclipped(canvas);
@@ -582,6 +583,7 @@ public class FinanceChart extends View {
         }
 
 
+        float topPos = contentRect.top - dataPointRadius * 2f - convertDpToPixels(1);
         // Draws X top labels
         labelTextPaint.setTextAlign(Paint.Align.CENTER);
         for (int i = 0; i < modelList.size(); i++) {
@@ -589,7 +591,7 @@ public class FinanceChart extends View {
             canvas.drawText(
                     modelList.get(i).getValue(), 0, labelLength,
                     getDrawX(modelList.get(i).getXVal()),
-                    contentRect.top - dataPointRadius / 2,
+                    topPos,
                     labelTextPaint);
         }
 
@@ -600,7 +602,7 @@ public class FinanceChart extends View {
         canvas.drawText(
                 "$", 0, 1,
                 contentRect.left - convertDpToPixels(7),
-                contentRect.top - dataPointRadius / 2,
+                topPos,
                 labelTextPaint);
 
 

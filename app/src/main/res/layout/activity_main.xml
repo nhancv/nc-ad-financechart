@@ -4,14 +4,31 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.nhancv.financechart.lib.FinanceChart
-        xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/financeChart"
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="184.4dp"
-        android:layout_centerInParent="true"
-        android:background="#E60A1F2A"
-        android:paddingBottom="10dp"
-        android:paddingTop="20dp"/>
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <com.nhancv.financechart.lib.FinanceChart
+                xmlns:android="http://schemas.android.com/apk/res/android"
+                android:id="@+id/financeChart"
+                android:layout_width="match_parent"
+                android:layout_height="184.4dp"
+                android:layout_gravity="center"
+                android:background="#E60A1F2A"
+                android:paddingBottom="10dp"
+                android:paddingTop="20dp"/>
+
+            <android.support.v4.widget.Space
+                android:layout_width="match_parent"
+                android:layout_height="500dp"/>
+
+        </LinearLayout>
+    </ScrollView>
 
 </RelativeLayout>
