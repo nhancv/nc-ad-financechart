@@ -229,6 +229,7 @@ public class FinanceChart extends View {
             return true;
         }
     };
+    private View.OnTouchListener preTouchListener;
 
     public FinanceChart(Context context) {
         this(context, null, 0);
@@ -298,8 +299,7 @@ public class FinanceChart extends View {
         //Compute chart data
         int maxYData = Integer.MIN_VALUE;
         for (int i = 0; i <= 20; i++) {
-//            int value = Math.abs(random.nextInt() % 30);
-            int value = i;
+            int value = Math.abs(random.nextInt() % 30);
             maxYData = Math.max(maxYData, value);
             Model model = new Model(String.valueOf(i + 1), String.valueOf(value));
             modelList.add(model);
@@ -392,6 +392,10 @@ public class FinanceChart extends View {
         drawBorder(canvas);
     }
 
+    public void setPreTouchListener(OnTouchListener preTouchListener) {
+        this.preTouchListener = preTouchListener;
+    }
+
     private void drawBorder(Canvas canvas) {
         canvas.drawLine(contentRect.left, contentRect.top - getPaddingTop(), contentRect.left, contentRect.bottom, axisPaint);
         canvas.drawLine(contentRect.left, contentRect.bottom, contentRect.right, contentRect.bottom, axisPaint);
@@ -411,23 +415,8 @@ public class FinanceChart extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        int action = event.getAction();
-        switch (action) {
-            case MotionEvent.ACTION_DOWN:
-                // Disallow ScrollView to intercept touch events.
-                if (event.getPointerCount() > 1) {
-                    //Enable if has more than 2 pointer
-                    this.getParent().requestDisallowInterceptTouchEvent(true);
-                } else if (currentViewport.left == AXIS_X_MIN || currentViewport.right == AXIS_X_MAX) {
-                    //Enable if edge detected
-                    this.getParent().requestDisallowInterceptTouchEvent(true);
-                }
-                break;
-
-            case MotionEvent.ACTION_UP:
-                // Allow ScrollView to intercept touch events.
-                this.getParent().requestDisallowInterceptTouchEvent(false);
-                break;
+        if (preTouchListener != null) {
+            preTouchListener.onTouch(this, event);
         }
 
         boolean retVal = scaleGestureDetector.onTouchEvent(event);
@@ -997,6 +986,17 @@ public class FinanceChart extends View {
         this.dataColor = dataColor;
     }
 
+    public boolean isEdgeDetect() {
+        return isEdgeLeftDetect() || isEdgeRightDetect();
+    }
+
+    public boolean isEdgeLeftDetect() {
+        return currentViewport.left == AXIS_X_MIN;
+    }
+
+    public boolean isEdgeRightDetect() {
+        return currentViewport.right == AXIS_X_MAX;
+    }
     /**
      * Persistent state that is saved.
      */
