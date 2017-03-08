@@ -29,9 +29,9 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.widget.OverScroller;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 /**
  * Created by nhancao on 3/7/17.
@@ -49,12 +49,12 @@ public class FinanceChart extends View {
     private static final float AXIS_Y_MIN = -1f;
     private static final float AXIS_Y_MAX = 1f;
     //Chart modified flag
-    boolean isYScale, isXScale, isYScroll, isXScroll, isYZoom, isXZoom;
+    private boolean isYScale, isXScale, isYScroll, isXScroll, isYZoom, isXZoom;
     /**
      * CUSTOM MODEL
      */
-    List<Model> modelList = new ArrayList<>();
-    float blockWidthInDp = 60;
+    private List<Model> modelList = new ArrayList<>();
+    private float blockWidthInDp = 60;
 
     private RectF currentViewport = new RectF(AXIS_X_MIN, AXIS_Y_MIN, AXIS_X_MAX, AXIS_Y_MAX);
     /**
@@ -290,26 +290,57 @@ public class FinanceChart extends View {
         genSampleData();
     }
 
+    public void setChartData(List<FinanceChart.Model> _modelList) {
+        if (_modelList == null || _modelList.size() == 0) return;
+
+        modelList = _modelList;
+
+        //Find max y data
+        float maxYData = Float.MIN_VALUE;
+        for (int i = 0; i < modelList.size(); i++) {
+            maxYData = Math.max(maxYData, modelList.get(i).getValue());
+        }
+        computePositionCorrelativeViewport(maxYData);
+        //Init scale
+        initScale();
+        ViewCompat.postInvalidateOnAnimation(this);
+    }
+
     private void genSampleData() {
-        Random random = new Random();
         modelList = new ArrayList<>();
 
         //Compute chart data
         int maxYData = Integer.MIN_VALUE;
         for (int i = 0; i <= 20; i++) {
-            int value = Math.abs(random.nextInt() % 30);
+            int value = 0;
             maxYData = Math.max(maxYData, value);
-            Model model = new Model(String.valueOf(i + 1), String.valueOf(value));
+            Model model = new Model(String.valueOf(i + 1), value);
             modelList.add(model);
         }
 
+        computePositionCorrelativeViewport(maxYData);
+
+    }
+
+    private void computePositionCorrelativeViewport(float maxYData) {
+        //Reset viewport
+        if (currentViewport == null) {
+            currentViewport = new RectF(AXIS_X_MIN, AXIS_Y_MIN, AXIS_X_MAX, AXIS_Y_MAX);
+        } else {
+            currentViewport.left = AXIS_X_MIN;
+            currentViewport.top = AXIS_Y_MIN;
+            currentViewport.right = AXIS_X_MAX;
+            currentViewport.bottom = AXIS_Y_MAX;
+        }
+
+        //Compute position correlative with viewport
         float blockW = (AXIS_X_MAX - AXIS_X_MIN) / modelList.size();
         float blockOffset = (blockW) / 2;
 
         for (int i = 0; i < modelList.size(); i++) {
-            float value = Float.valueOf(modelList.get(i).getValue());
+            float value = modelList.get(i).getValue();
             float x = (currentViewport.left + blockOffset + (blockW * i));
-            float y = currentViewport.bottom - value / maxYData * (AXIS_Y_MAX - AXIS_Y_MIN);
+            float y = currentViewport.top + value / maxYData * (AXIS_Y_MAX - AXIS_Y_MIN);
             modelList.get(i).setXVal(x);
             modelList.get(i).setYVal(y);
         }
@@ -319,7 +350,6 @@ public class FinanceChart extends View {
         //Compute grid data
         axisXPositionsBuffer = new float[(modelList.size() + 1)];
         axisXLinesBuffer = new float[(modelList.size() + 1) * 4];
-
     }
 
     private void setupPaints() {
@@ -593,9 +623,9 @@ public class FinanceChart extends View {
         // Draws X top labels
         labelTextPaint.setTextAlign(Paint.Align.CENTER);
         for (int i = 0; i < modelList.size(); i++) {
-            int labelLength = modelList.get(i).getValue().length();
+            String value = formatValue(modelList.get(i).getValue());
             canvas.drawText(
-                    modelList.get(i).getValue(), 0, labelLength,
+                    value, 0, value.length(),
                     getDrawX(modelList.get(i).getXVal()),
                     topPos,
                     labelTextPaint);
@@ -611,7 +641,26 @@ public class FinanceChart extends View {
                 topPos,
                 labelTextPaint);
 
+    }
 
+    /**
+     * Format value
+     *
+     * @param value
+     * @return
+     */
+    public String formatValue(float value) {
+        int pow = 1000;
+        if (value < pow) {
+            return new DecimalFormat("##0.00").format(value);
+        } else if (value < (pow * 10)) {
+            return new DecimalFormat("###.#k").format(value / pow);
+        } else if (value < (pow * 100)) {
+            return new DecimalFormat("###.#m").format(value / (pow * 10));
+        } else if (value < (pow * 1000)) {
+            return new DecimalFormat("###.#b").format(value / (pow * 100));
+        }
+        return String.valueOf(value);
     }
 
     /**
@@ -1040,14 +1089,13 @@ public class FinanceChart extends View {
         }
     }
 
-
-    public class Model {
+    public static class Model {
         private String title;
-        private String value;
+        private float value;
         private float yVal;
         private float xVal;
 
-        public Model(String title, String value) {
+        public Model(String title, float value) {
             this.title = title;
             this.value = value;
         }
@@ -1060,11 +1108,11 @@ public class FinanceChart extends View {
             this.title = title;
         }
 
-        public String getValue() {
+        public float getValue() {
             return value;
         }
 
-        public void setValue(String value) {
+        public void setValue(float value) {
             this.value = value;
         }
 
